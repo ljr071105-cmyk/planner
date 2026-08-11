@@ -68,7 +68,7 @@ function build(t, stale) {
   w.url = SITE;
   w.backgroundColor = new Color(p.bg);
   const small = config.widgetFamily === "small";
-  w.setPadding(small ? 13 : 15, small ? 14 : 18, small ? 11 : 13, small ? 14 : 18);
+  w.setPadding(small ? 14 : 16, small ? 16 : 24, small ? 12 : 14, small ? 14 : 20);
 
   const head = w.addStack();
   head.centerAlignContent();
