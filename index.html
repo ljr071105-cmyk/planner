@@ -279,7 +279,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   <div id="body"></div>
   <div class="foot">
     <span id="syncst">未配置同步</span>
-    <span style="opacity:.55">v11</span>
+    <span style="opacity:.55">v12</span>
     <button id="synccfg">同步设置</button>
     <button id="syncnow">立即同步</button>
     <button id="theme">切换主题</button>
@@ -665,6 +665,47 @@ build();
     applying = false;
   }
 
+  /* 按内容合并两边，任何一边写过的东西都不会消失 */
+  function keyOf(x) { return (x.t || "").trim() + " " + (x.n || "").trim(); }
+  function mergeList(rem, loc) {
+    const out = (rem || []).map(x => ({ t: x.t || "", d: !!x.d, n: x.n || "" }));
+    const seen = new Map();
+    out.forEach((x, i) => { if ((x.t || "").trim() || (x.n || "").trim()) seen.set(keyOf(x), i); });
+    (loc || []).forEach(x => {
+      if (!(x.t || "").trim() && !(x.n || "").trim()) return;
+      const k = keyOf(x);
+      if (seen.has(k)) { const i = seen.get(k); out[i].d = out[i].d || !!x.d; }
+      else { out.push({ t: x.t || "", d: !!x.d, n: x.n || "" }); seen.set(k, out.length - 1); }
+    });
+    return out.length ? out : [{ t: "", d: false, n: "" }];
+  }
+  function mergeAll(rem, loc) {
+    const res = {}, months = new Set(Object.keys(rem || {}).concat(Object.keys(loc || {})));
+    months.forEach(mk => {
+      const rm = (rem || {})[mk] || {}, lm = (loc || {})[mk] || {};
+      const ids = new Set(Object.keys(rm).concat(Object.keys(lm))), m = {};
+      ids.forEach(id => { m[id] = mergeList(rm[id], lm[id]); });
+      res[mk] = m;
+    });
+    return res;
+  }
+
+  /* 覆盖本机前先留快照，最多 3 份 */
+  function backup() {
+    try {
+      localStorage.setItem("planner-bak-" + Date.now(),
+        JSON.stringify({ at: new Date().toISOString(), data: gather() }));
+      const ks = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf("planner-bak-") === 0) ks.push(k);
+      }
+      ks.sort();
+      while (ks.length > 3) localStorage.removeItem(ks.shift());
+    } catch (e) {}
+  }
+
+
   async function api(path, opts) {
     const r = await fetch(API + path, Object.assign({
       headers: {
@@ -698,12 +739,9 @@ build();
     const r = await api("/repos/" + cfg.repo + "/contents/data.json", {
       method: "PUT", body: JSON.stringify(body)
     });
-    if (r.status === 409 || r.status === 422) {   // 远端已变，先拉再推
+    if (r.status === 409 || r.status === 422) {   // 远端已变：合并后重推
       const remote = await pull(true);
-      if (remote && !confirm("云端有更新的版本。\n确定 = 用本机内容覆盖云端\n取消 = 放弃本机改动，改用云端")) {
-        apply(remote.data); localStorage.setItem(MARK, remote.at);
-        localStorage.removeItem(DIRTY); build(); return;
-      }
+      if (remote) { backup(); apply(mergeAll(remote.data, gather())); build(); }
       return push();
     }
     if (!r.ok) throw new Error("写入失败 " + r.status);
@@ -721,16 +759,20 @@ build();
       const remote = await pull();
       const mark = localStorage.getItem(MARK);
       const dirty = localStorage.getItem(DIRTY);
-      if (remote && remote.at !== mark) {
-        if (dirty && !confirm("云端有别的设备写的新内容，而本机也有未同步的改动。\n" +
-            "确定 = 用云端覆盖本机\n取消 = 保留本机，稍后推上去")) {
-          localStorage.setItem(DIRTY, "1");
-        } else {
-          apply(remote.data); localStorage.setItem(MARK, remote.at);
-          localStorage.removeItem(DIRTY); build();
+
+      if (!remote) {
+        await push();                                  // 云端还没有文件，建一个
+      } else if (remote.at === mark) {
+        if (dirty) await push();                       // 只有本机变了
+      } else {
+        backup();                                      // 云端变了，先留快照
+        if (dirty) {                                   // 两边都变 → 合并后推回
+          apply(mergeAll(remote.data, gather())); build(); await push();
+        } else {                                       // 只有云端变 → 直接采用
+          apply(remote.data); build();
+          localStorage.setItem(MARK, remote.at); localStorage.removeItem(DIRTY);
         }
       }
-      if (manual || !remote || localStorage.getItem(DIRTY)) await push();
       status("已同步 · " + new Date().toTimeString().slice(0, 5));
     } catch (e) {
       status(navigator.onLine ? "同步失败：" + e.message : "离线，改动已存在本机", "bad");
