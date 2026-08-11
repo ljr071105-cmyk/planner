@@ -279,8 +279,9 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   <div id="body"></div>
   <div class="foot">
     <span id="syncst">未配置同步</span>
-    <span style="opacity:.55">v12</span>
+    <span style="opacity:.55">v13</span>
     <button id="synccfg">同步设置</button>
+    <button id="diag">诊断</button>
     <button id="syncnow">立即同步</button>
     <button id="theme">切换主题</button>
     <button id="export">导出备份</button>
@@ -759,21 +760,25 @@ build();
       const remote = await pull();
       const mark = localStorage.getItem(MARK);
       const dirty = localStorage.getItem(DIRTY);
+      let act = '无改动';
 
       if (!remote) {
-        await push();                                  // 云端还没有文件，建一个
+        await push(); act = '已建文件';
       } else if (remote.at === mark) {
-        if (dirty) await push();                       // 只有本机变了
+        if (dirty) { await push(); act = '已推送'; }
       } else {
-        backup();                                      // 云端变了，先留快照
-        if (dirty) {                                   // 两边都变 → 合并后推回
-          apply(mergeAll(remote.data, gather())); build(); await push();
-        } else {                                       // 只有云端变 → 直接采用
+        backup();
+        if (dirty) {
+          apply(mergeAll(remote.data, gather())); build(); await push(); act = '已合并';
+        } else {
           apply(remote.data); build();
           localStorage.setItem(MARK, remote.at); localStorage.removeItem(DIRTY);
+          act = '已拉取';
         }
       }
-      status("已同步 · " + new Date().toTimeString().slice(0, 5));
+      window.__act = act;
+      }
+      status(act + " · " + new Date().toTimeString().slice(0, 5));
     } catch (e) {
       status(navigator.onLine ? "同步失败：" + e.message : "离线，改动已存在本机", "bad");
       if (navigator.onLine) setTimeout(() => sync(), 30000);
@@ -852,6 +857,35 @@ build();
     } catch (e) {}
   }
 
+  document.getElementById("diag").onclick = async () => {
+    let remoteAt = "(未取)", http = "-";
+    try {
+      const r = await api("/repos/" + cfg.repo + "/contents/data.json?t=" + Date.now());
+      http = r.status;
+      if (r.ok) { const j = await r.json(); remoteAt = JSON.parse(dec(j.content)).at; }
+    } catch (e) { http = e.message; }
+    const n = Object.keys(gather()).reduce((a, k) =>
+      a + (gather()[k] ? Object.keys(gather()[k]).length : 0), 0);
+    alert(
+      "版本 v13
+" +
+      "仓库 " + (cfg.repo || "(空)") + "
+" +
+      "令牌 " + (cfg.token ? cfg.token.length + " 位" : "(空)") + "
+" +
+      "HTTP " + http + "
+" +
+      "本机待同步 " + (localStorage.getItem(DIRTY) ? "是" : "否") + "
+" +
+      "本机记录的上次同步 " + (localStorage.getItem(MARK) || "(无)") + "
+" +
+      "云端数据时间 " + remoteAt + "
+" +
+      "上次动作 " + (window.__act || "-") + "
+" +
+      "本机列表数 " + n
+    );
+  };
   window.__sync = sync;
   if (cfg.token && cfg.repo) sync(); else status("未配置同步");
 })();
