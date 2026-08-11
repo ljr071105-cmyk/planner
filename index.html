@@ -279,6 +279,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   <div id="body"></div>
   <div class="foot">
     <span id="syncst">未配置同步</span>
+    <span style="opacity:.55">v11</span>
     <button id="synccfg">同步设置</button>
     <button id="syncnow">立即同步</button>
     <button id="theme">切换主题</button>
@@ -337,11 +338,14 @@ function mkck(it,row){
   b.innerHTML='<svg viewBox="0 0 12 12"><path d="M2 6.4 4.6 9 10 3.2"/></svg>';
   b.onclick=()=>{it.d=!it.d;save();
     if(it.d){b.classList.add("burst");setTimeout(()=>b.classList.remove("burst"),520)}
-    row.classList.toggle("done",it.d);b.setAttribute("aria-checked",it.d?"true":"false");tally()};
+    row.classList.toggle("done",it.d);b.setAttribute("aria-checked",it.d?"true":"false");tally();
+    if(window.__sync)setTimeout(window.__sync,300)};
   return b;
 }
 function mktx(it,f){const tx=el("div","tx",it[f]);tx.contentEditable="true";tx.spellcheck=false;
-  tx.oninput=()=>{it[f]=tx.textContent;save();tally()};return tx}
+  tx.oninput=()=>{it[f]=tx.textContent;save();tally()};
+  tx.onblur=()=>{if(window.__sync)window.__sync()};
+  return tx}
 
 function simple(id,task){
   const box=el("div");
@@ -806,6 +810,7 @@ build();
     } catch (e) {}
   }
 
+  window.__sync = sync;
   if (cfg.token && cfg.repo) sync(); else status("未配置同步");
 })();
 </script>
