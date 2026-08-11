@@ -730,6 +730,7 @@ build();
       status("已同步 · " + new Date().toTimeString().slice(0, 5));
     } catch (e) {
       status(navigator.onLine ? "同步失败：" + e.message : "离线，改动已存在本机", "bad");
+      if (navigator.onLine) setTimeout(() => sync(), 30000);
     }
     busy = false;
   }
@@ -740,8 +741,9 @@ build();
     raw(k, v);
     if (!applying && k && k.indexOf("planner-20") === 0) {
       raw(DIRTY, "1");
+      if (cfg.token && cfg.repo) status("待同步…", "busy");
       clearTimeout(timer);
-      timer = setTimeout(() => sync(), 4000);
+      timer = setTimeout(() => sync(), 2500);
     }
   };
 
@@ -772,10 +774,37 @@ build();
   };
 
   addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden" && localStorage.getItem(DIRTY)) sync();
+    if (document.visibilityState === "hidden") flush();
     if (document.visibilityState === "visible") sync();
   });
+  addEventListener("pagehide", flush);
   addEventListener("online", () => sync());
+
+  // 兜底：只要还有未推送的改动，每 45 秒重试一次
+  setInterval(() => {
+    if (document.visibilityState === "visible" && localStorage.getItem(DIRTY)) sync();
+  }, 45000);
+
+  // 切走前尽力推一次。keepalive 让请求在页面被冻结后仍能发完
+  function flush() {
+    if (!localStorage.getItem(DIRTY) || !cfg.token || !cfg.repo || !sha) return;
+    const payload = { v: 1, at: new Date().toISOString(), data: gather() };
+    try {
+      fetch(API + "/repos/" + cfg.repo + "/contents/data.json", {
+        method: "PUT", keepalive: true,
+        headers: {
+          Authorization: "Bearer " + cfg.token,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message: "计划表数据 " + payload.at.slice(0, 16).replace("T", " "),
+          content: enc(JSON.stringify(payload, null, 1)), sha: sha
+        })
+      }).then(r => { if (r.ok) { localStorage.removeItem(DIRTY);
+        localStorage.setItem(MARK, payload.at); } }).catch(() => {});
+    } catch (e) {}
+  }
 
   if (cfg.token && cfg.repo) sync(); else status("未配置同步");
 })();
