@@ -667,7 +667,7 @@ build();
   }
 
   /* 按内容合并两边，任何一边写过的东西都不会消失 */
-  function keyOf(x) { return (x.t || "").trim() + " " + (x.n || "").trim(); }
+  function keyOf(x) { return (x.t || "").trim() + "§§" + (x.n || "").trim(); }
   function mergeList(rem, loc) {
     const out = (rem || []).map(x => ({ t: x.t || "", d: !!x.d, n: x.n || "" }));
     const seen = new Map();
@@ -863,27 +863,22 @@ build();
       http = r.status;
       if (r.ok) { const j = await r.json(); remoteAt = JSON.parse(dec(j.content)).at; }
     } catch (e) { http = e.message; }
-    const n = Object.keys(gather()).reduce((a, k) =>
-      a + (gather()[k] ? Object.keys(gather()[k]).length : 0), 0);
-    alert(
-      "版本 v13
-" +
-      "仓库 " + (cfg.repo || "(空)") + "
-" +
-      "令牌 " + (cfg.token ? cfg.token.length + " 位" : "(空)") + "
-" +
-      "HTTP " + http + "
-" +
-      "本机待同步 " + (localStorage.getItem(DIRTY) ? "是" : "否") + "
-" +
-      "本机记录的上次同步 " + (localStorage.getItem(MARK) || "(无)") + "
-" +
-      "云端数据时间 " + remoteAt + "
-" +
-      "上次动作 " + (window.__act || "-") + "
-" +
-      "本机列表数 " + n
-    );
+    const g = gather();
+    let lists = 0, items = 0;
+    Object.keys(g).forEach(mk => Object.keys(g[mk]).forEach(id => {
+      lists++; items += g[mk][id].filter(x => (x.t || "").trim()).length;
+    }));
+    alert([
+      "版本 v13",
+      "仓库 " + (cfg.repo || "(空)"),
+      "令牌 " + (cfg.token ? cfg.token.length + " 位" : "(空)"),
+      "HTTP " + http,
+      "本机待同步 " + (localStorage.getItem(DIRTY) ? "是" : "否"),
+      "本机记录的上次同步 " + (localStorage.getItem(MARK) || "(无)"),
+      "云端数据时间 " + remoteAt,
+      "上次动作 " + (window.__act || "-"),
+      "本机 " + lists + " 个列表 / " + items + " 条内容"
+    ].join("\n"));
   };
   window.__sync = sync;
   if (cfg.token && cfg.repo) sync(); else status("未配置同步");
