@@ -73,15 +73,16 @@ function build(t, stale) {
 
   const head = w.addStack();
   head.centerAlignContent();
-  head.addSpacer();
   const c = head.addText(t.total ? t.done + "/" + t.total : (stale ? "离线" : "空"));
   c.font = Font.mediumSystemFont(12);
   c.textColor = new Color(p.mute);
-  head.addSpacer(10);
+  c.lineLimit = 1;
+  head.addSpacer();                       // 弹性空白吃掉多余宽度
   const d = head.addText(t.head);
   d.font = Font.semiboldRoundedSystemFont(14);
-  d.lineLimit = 1;
   d.textColor = new Color(p.fg);
+  d.lineLimit = 1;
+  d.minimumScaleFactor = 0.7;             // 宁可缩小也不截断
 
   w.addSpacer(12);
 
