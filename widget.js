@@ -27,11 +27,15 @@ const CACHE = fm.joinPath(fm.cacheDirectory(), "planner-cache.json");
 
 async function load() {
   try {
-    const req = new Request("https://api.github.com/repos/" + REPO + "/contents/data.json");
+    // 加时间戳并禁用缓存，否则 iOS 网络层会把旧响应直接还回来
+    const req = new Request("https://api.github.com/repos/" + REPO +
+      "/contents/data.json?ref=HEAD&t=" + Date.now());
     req.headers = {
       Authorization: "Bearer " + TOKEN,
       Accept: "application/vnd.github.raw",
-      "X-GitHub-Api-Version": "2022-11-28"
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Cache-Control": "no-cache, no-store",
+      Pragma: "no-cache"
     };
     const txt = await req.loadString();
     const json = JSON.parse(txt);
@@ -82,7 +86,7 @@ function build(t, stale) {
   const head = w.addStack();
   head.size = new Size(INNER, 0);
   head.centerAlignContent();
-  const c = head.addText(t.total ? t.done + "/" + t.total : (stale ? "离线" : "空"));
+  const c = head.addText((t.total ? t.done + "/" + t.total : "空") + (stale ? " · 缓存" : ""));
   c.font = Font.mediumSystemFont(11);
   c.textColor = new Color(p.mute);
   c.lineLimit = 1;
@@ -165,6 +169,8 @@ const t = res.json ? todayTasks(res.json)
                    : { groups: [], done: 0, total: 0, month: new Date().getMonth() + 1,
                        head: "无法读取" };
 const widget = build(t, res.stale);
+
+widget.refreshAfterDate = new Date(Date.now() + 10 * 60 * 1000);   // 期望 10 分钟后再刷
 
 if (config.runsInWidget) {
   Script.setWidget(widget);
