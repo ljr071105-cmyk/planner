@@ -59,7 +59,7 @@ function todayTasks(json) {
   SLOTS.forEach(function (s) {
     const items = (month[dKey + "-" + s[0]] || [])
       .map(function (i, idx) { return { t: i.t, d: i.d, idx: idx }; })
-      .filter(function (i) { return i.t && i.t.trim(); });
+      .filter(function (i) { return !i.del && i.t && i.t.trim(); });
     if (!items.length) return;
     out.push({ slot: s[0], key: dKey + "-" + s[0], label: s[1], items: items });
     items.forEach(function (i) { total++; if (i.d) done++; });
