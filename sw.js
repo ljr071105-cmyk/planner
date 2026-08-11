@@ -1,4 +1,4 @@
-const CACHE = "planner-v4";
+const CACHE = "planner-v5";
 const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (e) => {
@@ -15,6 +15,28 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  const url = new URL(e.request.url);
+  if (url.origin !== location.origin) return;
+
+  const isDoc = e.request.mode === "navigate" || e.request.destination === "document";
+
+  if (isDoc) {
+    // 页面：先走网络，拿到就更新缓存；断网时回退到缓存
+    e.respondWith(
+      fetch(e.request)
+        .then((r) => {
+          if (r && r.ok) {
+            const copy = r.clone();
+            caches.open(CACHE).then((c) => { c.put("./index.html", copy); c.put("./", copy.clone()); });
+          }
+          return r;
+        })
+        .catch(() => caches.match("./index.html").then((hit) => hit || caches.match("./")))
+    );
+    return;
+  }
+
+  // 其他资源：缓存优先，后台更新
   e.respondWith(
     caches.match(e.request).then((hit) => {
       if (hit) {
@@ -23,7 +45,7 @@ self.addEventListener("fetch", (e) => {
         }).catch(() => {});
         return hit;
       }
-      return fetch(e.request).catch(() => caches.match("./index.html"));
+      return fetch(e.request);
     })
   );
 });
