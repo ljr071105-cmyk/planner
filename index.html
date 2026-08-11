@@ -275,12 +275,36 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   </header>
   <div id="body"></div>
   <div class="foot">
-    <span>本地保存 · 改动即时写入</span>
+    <span id="syncst">未配置同步</span>
+    <button id="synccfg">同步设置</button>
+    <button id="syncnow">立即同步</button>
     <button id="theme">切换主题</button>
     <button id="export">导出备份</button>
     <button id="import">导入备份</button>
     <input type="file" id="file" accept=".json" hidden>
     <button id="reset">清空本月</button>
+  </div>
+
+  <div id="panel" hidden style="margin-top:20px;padding:20px 22px;background:var(--card);
+    border:1px solid var(--rule);max-width:520px">
+    <p style="font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--ink3);
+      margin:0 0 14px">GITHUB 同步</p>
+    <label style="display:block;font-size:12px;color:var(--ink2);margin-bottom:4px">私有仓库
+      （格式 用户名/仓库名）</label>
+    <input id="gh-repo" type="text" placeholder="ljr071105-cmyk/planner-data" spellcheck="false"
+      style="width:100%;padding:9px 11px;border:1px solid var(--rule);background:var(--paper);
+      color:var(--ink);font-family:var(--mono);font-size:13px;margin-bottom:14px">
+    <label style="display:block;font-size:12px;color:var(--ink2);margin-bottom:4px">访问令牌
+      （Fine-grained PAT，只给这一个仓库的 Contents 读写权限）</label>
+    <input id="gh-token" type="password" placeholder="github_pat_..." spellcheck="false"
+      style="width:100%;padding:9px 11px;border:1px solid var(--rule);background:var(--paper);
+      color:var(--ink);font-family:var(--mono);font-size:13px;margin-bottom:14px">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button id="gh-save">保存并同步</button>
+      <button id="gh-clear">清除令牌</button>
+    </div>
+    <p style="font-size:12px;color:var(--ink3);line-height:1.6;margin:14px 0 0">
+      令牌只存在这台设备的浏览器里，不会进入代码仓库。每台设备各填一次。</p>
   </div>
 </div>
 
@@ -558,6 +582,172 @@ document.getElementById("file").onchange=e=>{
 };
 build();
 </script>
+
+<script>
+/* ---------- GitHub 同步 ---------- */
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const CFG = "planner-sync-cfg";
+  const MARK = "planner-sync-mark";     // 最近一次成功同步时远端的时间戳
+  const DIRTY = "planner-sync-dirty";   // 本地有未推送的改动
+  const API = "https://api.github.com";
+  let cfg = {}, sha = null, timer = null, busy = false, applying = false;
+
+  try { cfg = JSON.parse(localStorage.getItem(CFG) || "{}"); } catch (e) { cfg = {}; }
+
+  const enc = (s) => {
+    const b = new TextEncoder().encode(s);
+    let bin = ""; b.forEach((x) => (bin += String.fromCharCode(x)));
+    return btoa(bin);
+  };
+  const dec = (s) => {
+    const bin = atob(s.replace(/\s/g, ""));
+    return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+  };
+
+  function status(t, tone) {
+    const el = $("syncst");
+    el.textContent = t;
+    el.style.color = tone === "bad" ? "var(--done)" : "var(--ink3)";
+    el.style.opacity = tone === "busy" ? ".6" : "1";
+  }
+
+  function gather() {
+    const o = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf("planner-20") === 0) {
+        try { o[k] = JSON.parse(localStorage.getItem(k)); } catch (e) {}
+      }
+    }
+    return o;
+  }
+
+  function apply(d) {
+    applying = true;
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf("planner-20") === 0) localStorage.removeItem(k);
+    }
+    Object.keys(d).forEach((k) => localStorage.setItem(k, JSON.stringify(d[k])));
+    applying = false;
+  }
+
+  async function api(path, opts) {
+    const r = await fetch(API + path, Object.assign({
+      headers: {
+        Authorization: "Bearer " + cfg.token,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      }
+    }, opts || {}));
+    return r;
+  }
+
+  async function pull(silent) {
+    if (!cfg.token || !cfg.repo) return null;
+    const r = await api("/repos/" + cfg.repo + "/contents/data.json?ref=HEAD&t=" + Date.now());
+    if (r.status === 404) { sha = null; return null; }
+    if (r.status === 401 || r.status === 403) throw new Error("令牌无效或权限不足");
+    if (!r.ok) throw new Error("读取失败 " + r.status);
+    const j = await r.json();
+    sha = j.sha;
+    return JSON.parse(dec(j.content));
+  }
+
+  async function push() {
+    if (!cfg.token || !cfg.repo) return;
+    const payload = { v: 1, at: new Date().toISOString(), data: gather() };
+    const body = {
+      message: "计划表数据 " + payload.at.slice(0, 16).replace("T", " "),
+      content: enc(JSON.stringify(payload, null, 1))
+    };
+    if (sha) body.sha = sha;
+    const r = await api("/repos/" + cfg.repo + "/contents/data.json", {
+      method: "PUT", body: JSON.stringify(body)
+    });
+    if (r.status === 409 || r.status === 422) {   // 远端已变，先拉再推
+      const remote = await pull(true);
+      if (remote && !confirm("云端有更新的版本。\n确定 = 用本机内容覆盖云端\n取消 = 放弃本机改动，改用云端")) {
+        apply(remote.data); localStorage.setItem(MARK, remote.at);
+        localStorage.removeItem(DIRTY); build(); return;
+      }
+      return push();
+    }
+    if (!r.ok) throw new Error("写入失败 " + r.status);
+    const j = await r.json();
+    sha = j.content.sha;
+    localStorage.setItem(MARK, payload.at);
+    localStorage.removeItem(DIRTY);
+  }
+
+  async function sync(manual) {
+    if (busy || !cfg.token || !cfg.repo) return;
+    busy = true; status("同步中…", "busy");
+    try {
+      const remote = await pull();
+      const mark = localStorage.getItem(MARK);
+      const dirty = localStorage.getItem(DIRTY);
+      if (remote && remote.at !== mark) {
+        if (dirty && !confirm("云端有别的设备写的新内容，而本机也有未同步的改动。\n" +
+            "确定 = 用云端覆盖本机\n取消 = 保留本机，稍后推上去")) {
+          localStorage.setItem(DIRTY, "1");
+        } else {
+          apply(remote.data); localStorage.setItem(MARK, remote.at);
+          localStorage.removeItem(DIRTY); build();
+        }
+      }
+      if (localStorage.getItem(DIRTY) || (!remote && Object.keys(gather()).length)) await push();
+      status("已同步 · " + new Date().toTimeString().slice(0, 5));
+    } catch (e) {
+      status(navigator.onLine ? "同步失败：" + e.message : "离线，改动已存在本机", "bad");
+    }
+    busy = false;
+  }
+
+  /* 任何一次写入都标记为待同步，并延时推送 */
+  const raw = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function (k, v) {
+    raw(k, v);
+    if (!applying && k && k.indexOf("planner-20") === 0) {
+      raw(DIRTY, "1");
+      clearTimeout(timer);
+      timer = setTimeout(() => sync(), 4000);
+    }
+  };
+
+  $("synccfg").onclick = () => {
+    const p = $("panel");
+    p.hidden = !p.hidden;
+    if (!p.hidden) { $("gh-repo").value = cfg.repo || ""; $("gh-token").value = cfg.token || ""; }
+  };
+  $("gh-save").onclick = () => {
+    cfg = { repo: $("gh-repo").value.trim().replace(/^https?:\/\/github\.com\//, ""),
+            token: $("gh-token").value.trim() };
+    localStorage.setItem(CFG, JSON.stringify(cfg));
+    $("panel").hidden = true;
+    sha = null; sync(true);
+  };
+  $("gh-clear").onclick = () => {
+    localStorage.removeItem(CFG); cfg = {};
+    $("gh-repo").value = ""; $("gh-token").value = "";
+    status("未配置同步");
+  };
+  $("syncnow").onclick = () => {
+    if (!cfg.token) { $("panel").hidden = false; return; }
+    sha = null; sync(true);
+  };
+
+  addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && localStorage.getItem(DIRTY)) sync();
+    if (document.visibilityState === "visible") sync();
+  });
+  addEventListener("online", () => sync());
+
+  if (cfg.token && cfg.repo) sync(); else status("未配置同步");
+})();
+</script>
+
 <script>
 if ("serviceWorker" in navigator) {
   addEventListener("load", function () {
