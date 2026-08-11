@@ -1,0 +1,13 @@
+{
+  "name": "月度计划表",
+  "short_name": "计划表",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F0F4F6",
+  "theme_color": "#27728F",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
