@@ -4,7 +4,6 @@
 const REPO  = "ljr071105-cmyk/planner-data";
 const TOKEN = "在这里粘贴你的 github_pat_...";
 const SITE  = "https://ljr071105-cmyk.github.io/planner/";
-const NAME  = "计划表小组件";   // 必须和 Scriptable 里这个脚本的名字完全一致
 
 const PALETTE = {
   1: { bg:"#FEEFEF", fg:"#201818", mute:"#8A7D7D", am:"#B47173", pm:"#8C4A4D", ev:"#5E2B2E" },
@@ -123,8 +122,6 @@ function build(t, stale) {
       const row = w.addStack();
       row.size = new Size(INNER, 0);
       row.centerAlignContent();
-      row.url = "scriptable:///run/" + encodeURIComponent(NAME) +
-        "?k=" + encodeURIComponent(t.mKey) + "&s=" + g.key + "&i=" + it.idx;
 
       // 左侧留白兼时段标签：每组只在第一行写「上午/下午/晚上」
       if (INDENT) {
@@ -163,17 +160,6 @@ function build(t, stale) {
   return w;
 }
 
-const q = args.queryParameters || {};
-if (q.k && q.s && q.i !== undefined) {
-  try {
-    await toggle(q.k, q.s, parseInt(q.i, 10));
-  } catch (e) {
-    const a = new Alert(); a.title = "勾选失败"; a.message = String(e.message || e);
-    a.addAction("好"); await a.present();
-  }
-  Script.complete();
-} else {
-
 const res = await load();
 const t = res.json ? todayTasks(res.json)
                    : { groups: [], done: 0, total: 0, month: new Date().getMonth() + 1,
@@ -186,36 +172,3 @@ if (config.runsInWidget) {
   await widget.presentMedium();
 }
 Script.complete();
-}
-
-async function toggle(mKey, slotKey, idx) {
-  const url = "https://api.github.com/repos/" + REPO + "/contents/data.json";
-  const h = {
-    Authorization: "Bearer " + TOKEN,
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28"
-  };
-  const g = new Request(url); g.headers = h;
-  const meta = await g.loadJSON();
-  const clean = (meta.content || "").replace(/\s/g, "");   // GitHub 的 base64 带换行，必须先去掉
-  const raw = Data.fromBase64String(clean);
-  if (!raw) throw new Error("data.json 解码失败");
-  const payload = JSON.parse(raw.toRawString());
-
-  const arr = payload.data[mKey] && payload.data[mKey][slotKey];
-  if (!arr || !arr[idx]) return;
-  arr[idx].d = !arr[idx].d;
-  payload.at = new Date().toISOString();
-
-  const put = new Request(url);
-  put.method = "PUT";
-  put.headers = Object.assign({ "Content-Type": "application/json" }, h);
-  put.body = JSON.stringify({
-    message: "小组件勾选 " + slotKey,
-    content: Data.fromString(JSON.stringify(payload, null, 1)).toBase64String(),
-    sha: meta.sha
-  });
-  await put.loadJSON();
-
-  fm.writeString(CACHE, JSON.stringify(payload));   // 本地缓存同步更新，回桌面立刻能看到
-}
