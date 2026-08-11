@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>正在更新</title>
+<style>
+  body{margin:0;height:100vh;display:grid;place-items:center;background:#F0F4F6;
+    font-family:-apple-system,"Segoe UI","PingFang SC",sans-serif;color:#12171A}
+  .box{text-align:center}
+  .t{font-size:15px;letter-spacing:.02em}
+  .s{font-size:12px;color:#6b757c;margin-top:10px;font-family:ui-monospace,Consolas,monospace}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="t">正在清理旧缓存…</div>
+  <div class="s" id="s">开始</div>
+</div>
+<script>
+(async function () {
+  var s = document.getElementById("s");
+  function say(m) { s.textContent = m; }
+  try {
+    var rs = await navigator.serviceWorker.getRegistrations();
+    for (var i = 0; i < rs.length; i++) { await rs[i].unregister(); }
+    say("已注销 " + rs.length + " 个 Service Worker");
+  } catch (e) { say("跳过 Service Worker"); }
+  try {
+    var ks = await caches.keys();
+    for (var j = 0; j < ks.length; j++) { await caches.delete(ks[j]); }
+    say("已清除 " + ks.length + " 份缓存，正在载入最新版…");
+  } catch (e) {}
+  setTimeout(function () {
+    location.replace("index.html?fresh=" + Date.now());
+  }, 600);
+})();
+</script>
+</body>
+</html>
