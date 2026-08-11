@@ -284,7 +284,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   <div id="body"></div>
   <div class="foot">
     <span id="syncst">未配置同步</span>
-    <span style="opacity:.55" id="build">v22-0811-1858</span>
+    <span style="opacity:.55" id="build">v23-0811-1914</span>
     <button id="synccfg">同步设置</button>
     <button id="diag">诊断</button>
     <button id="logbtn">日志</button>
@@ -746,6 +746,19 @@ build();
     return res;
   }
 
+  /* 30 天前的墓碑清掉，别让文件无限长 */
+  function purge(data) {
+    const cut = Date.now() - 30 * 864e5;
+    Object.keys(data).forEach(function (mk) {
+      if (mk.indexOf("__") === 0) return;
+      Object.keys(data[mk]).forEach(function (id) {
+        const kept = data[mk][id].filter(function (x) { return !(x.del && (x.u || 0) < cut); });
+        data[mk][id] = kept.length ? kept : [{ id: "", t: "", d: false, n: "", u: 0 }];
+      });
+    });
+    return data;
+  }
+
   /* 覆盖本机前先留快照，最多 3 份 */
   function backup() {
     try {
@@ -786,9 +799,10 @@ build();
     return parsed;
   }
 
-  async function push() {
+  async function push(depth) {
     if (!cfg.token || !cfg.repo) return;
-    const payload = { v: 1, at: new Date().toISOString(), data: gather() };
+    depth = depth || 0;
+    const payload = { v: 1, at: new Date().toISOString(), data: purge(gather()) };
     const body = {
       message: "计划表数据 " + payload.at.slice(0, 16).replace("T", " "),
       content: enc(JSON.stringify(payload, null, 1))
@@ -798,9 +812,11 @@ build();
       method: "PUT", body: JSON.stringify(body)
     });
     if (r.status === 409 || r.status === 422) {   // 远端已变：合并后重推
+      if (depth >= 3) { log("409 重试超过 3 次，放弃本轮"); throw new Error("冲突重试超限"); }
+      log("409 冲突，合并后第 " + (depth + 1) + " 次重推");
       const remote = await pull(true);
       if (remote) { backup(); apply(mergeAll(remote.data, gather())); build(); }
-      return push();
+      return push(depth + 1);
     }
     log("PUT 返回 " + r.status);
     if (!r.ok) throw new Error("写入失败 " + r.status);
