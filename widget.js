@@ -68,10 +68,17 @@ function build(t, stale) {
   w.url = SITE;
   w.backgroundColor = new Color(p.bg);
   const small = config.widgetFamily === "small";
-  w.setPadding(small ? 14 : 15, small ? 14 : 16, small ? 12 : 14, small ? 14 : 18);
+  const padT = small ? 14 : 15, padL = small ? 14 : 16;
+  const padB = small ? 12 : 14, padR = small ? 14 : 18;
+  w.setPadding(padT, padL, padB, padR);
   const INDENT = small ? 0 : 44;   // 内容行的额外左缩进，改这个数即可
 
+  // 把可用宽度算出来并钉死，否则一条长文字会把整个布局撑宽、把日期挤出可视区
+  const SW = Device.screenSize().width;
+  const INNER = Math.round((small ? SW * 0.40 : SW * 0.86) - padL - padR);
+
   const head = w.addStack();
+  head.size = new Size(INNER, 0);
   head.centerAlignContent();
   const c = head.addText(t.total ? t.done + "/" + t.total : (stale ? "离线" : "空"));
   c.font = Font.mediumSystemFont(12);
@@ -101,6 +108,7 @@ function build(t, stale) {
     if (used >= budget) break;
     if (!small) {
       const lr = w.addStack();
+      lr.size = new Size(INNER, 0);
       lr.centerAlignContent();
       if (INDENT) lr.addSpacer(INDENT);
       const l = lr.addText(g.label);
@@ -112,6 +120,7 @@ function build(t, stale) {
     for (const it of g.items) {
       if (used >= budget) break;
       const row = w.addStack();
+      row.size = new Size(INNER, 0);
       row.centerAlignContent();
       if (INDENT) row.addSpacer(INDENT);
       const mk = row.addStack();
@@ -120,11 +129,12 @@ function build(t, stale) {
       mark.font = Font.systemFont(12);
       mark.textColor = new Color(it.d ? p.mute : p[g.slot]);
       row.addSpacer(4);
-      const tx = row.addText(it.t);
+      const tw = row.addStack();
+      tw.size = new Size(INNER - INDENT - 21, 0);
+      const tx = tw.addText(it.t);
       tx.font = Font.systemFont(13);
       tx.textColor = new Color(it.d ? p.mute : p.fg);
       tx.lineLimit = 1;
-      row.addSpacer();
       w.addSpacer(5);
       used++;
     }
