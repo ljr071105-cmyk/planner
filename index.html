@@ -777,7 +777,6 @@ build();
         }
       }
       window.__act = act;
-      }
       status(act + " · " + new Date().toTimeString().slice(0, 5));
     } catch (e) {
       status(navigator.onLine ? "同步失败：" + e.message : "离线，改动已存在本机", "bad");
