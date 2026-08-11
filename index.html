@@ -284,7 +284,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   <div id="body"></div>
   <div class="foot">
     <span id="syncst">未配置同步</span>
-    <span style="opacity:.55">v15</span>
+    <span style="opacity:.55">v16</span>
     <button id="synccfg">同步设置</button>
     <button id="diag">诊断</button>
     <button id="syncnow">立即同步</button>
@@ -339,7 +339,10 @@ const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).sli
 const blank=()=>({id:uid(),t:"",d:false,n:"",u:0});
 const stamp=it=>{if(!it.id)it.id=uid();it.u=Date.now();return it};
 const get=id=>{if(!S[id])S[id]=[blank()];
-  S[id].forEach(x=>{if(!x.id)x.id=uid();if(!x.u)x.u=0});return S[id]};
+  S[id].forEach(x=>{if(!x.id)x.id=uid();if(!x.u)x.u=0});
+  if(!S[id].some(x=>!x.del))S[id].push(blank());return S[id]};
+const live=id=>get(id).filter(x=>!x.del);
+const kill=(id,it)=>{if(live(id).length<=1){it.t='';it.n='';it.d=false}else{it.del=1}stamp(it)};
 function caret(n){if(!n)return;n.focus();const r=document.createRange();r.selectNodeContents(n);
   r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r)}
 
@@ -362,16 +365,16 @@ function simple(id,task){
   const box=el("div");
   const draw=()=>{
     box.innerHTML="";
-    get(id).forEach((it,i)=>{
+    live(id).forEach((it,i)=>{
       const row=el("div","row"+(it.d?" done":""));
       row.appendChild(task?mkck(it,row):el("span","bul","◆"));
-      const add=()=>{get(id).splice(i+1,0,blank());save();draw();
+      const add=()=>{get(id).splice(get(id).indexOf(it)+1,0,blank());save();draw();
         caret(box.querySelectorAll(".tx")[i+1])};
       const tx=mktx(it,"t");
       tx.onkeydown=ev=>{
         if(ev.key==="Enter"){ev.preventDefault();add()}
-        if(ev.key==="Backspace"&&tx.textContent===""&&get(id).length>1){ev.preventDefault();
-          get(id).splice(i,1);save();draw();tally();
+        if(ev.key==="Backspace"&&tx.textContent===""&&live(id).length>1){ev.preventDefault();
+          kill(id,it);save();draw();tally();
           caret(box.querySelectorAll(".tx")[Math.max(0,i-1)])}};
       row.appendChild(tx);box.appendChild(row);
     });
@@ -390,17 +393,17 @@ function slot(id,label,code){
   const box=el("div");
   const draw=()=>{
     box.innerHTML="";
-    get(id).forEach((it,i)=>{
+    live(id).forEach((it,i)=>{
       const pair=el("div","pair");
-      const add=()=>{get(id).splice(i+1,0,blank());save();draw();
+      const add=()=>{get(id).splice(get(id).indexOf(it)+1,0,blank());save();draw();
         caret(box.querySelectorAll(".cell:first-child .tx")[i+1])};
       const c1=el("div","cell"),r1=el("div","row"+(it.d?" done":""));
       r1.appendChild(mkck(it,r1));
       const t1=mktx(it,"t");
       t1.onkeydown=ev=>{
         if(ev.key==="Enter"){ev.preventDefault();add()}
-        if(ev.key==="Backspace"&&t1.textContent===""&&!it.n&&get(id).length>1){ev.preventDefault();
-          get(id).splice(i,1);save();draw();tally();
+        if(ev.key==="Backspace"&&t1.textContent===""&&!it.n&&live(id).length>1){ev.preventDefault();
+          kill(id,it);save();draw();tally();
           caret(box.querySelectorAll(".cell:first-child .tx")[Math.max(0,i-1)])}};
       r1.appendChild(t1);c1.appendChild(r1);
       const c2=el("div","cell"),r2=el("div","row");
@@ -512,6 +515,7 @@ let jumped = false;
 function tally(){
   let td=0,tt=0,notes=0;
   Object.keys(S).forEach(k=>S[k].forEach(it=>{
+    if(it.del)return;
     if(k==="review"){if(it.t.trim())notes++;return}
     if(it.t.trim()){tt++;if(it.d)td++}
     if(it.n&&it.n.trim())notes++;}));
@@ -529,7 +533,7 @@ function tally(){
   WEEKS.forEach(w=>{
     let d=0,t=0;const ids=[w.id];
     w.days.forEach(x=>SLOTS.forEach(([,k])=>ids.push(x.key+"-"+k)));
-    ids.forEach(id=>(S[id]||[]).forEach(it=>{if(it.t.trim()){t++;if(it.d)d++}}));
+    ids.forEach(id=>(S[id]||[]).forEach(it=>{if(it.del)return;if(it.t.trim()){t++;if(it.d)d++}}));
     const p=t?Math.round(d/t*100):0;
     const bar=document.querySelector('.meter i[data-w="'+w.id+'"]');
     if(!bar)return;
@@ -541,6 +545,7 @@ function tally(){
     w.days.forEach(x=>{
       let dd=0,dt=0,has=false;
       SLOTS.forEach(([,k])=>(S[x.key+"-"+k]||[]).forEach(it=>{
+        if(it.del)return;
         if(it.t.trim()){dt++;if(it.d){dd++;has=true}}
         if(it.n&&it.n.trim())has=true;}));
       const dot=document.querySelector('.dots b[data-day="'+x.key+'"]');
@@ -681,13 +686,15 @@ build();
   function mergeList(rem, loc) {
     const byId = new Map(), byText = new Map(), order = [];
     function take(x, fromRemote) {
-      const item = { id: x.id || "", t: x.t || "", d: !!x.d, n: x.n || "", u: x.u || 0 };
-      if (!item.t.trim() && !item.n.trim()) return;
+      const item = { id: x.id || "", t: x.t || "", d: !!x.d, n: x.n || "",
+                     u: x.u || 0, del: x.del ? 1 : 0 };
+      if (!item.del && !item.t.trim() && !item.n.trim()) return;
       const key = item.id || ("txt:" + fingerprint(item));
       const map = item.id ? byId : byText;
       const prev = map.get(key);
       if (!prev) { map.set(key, item); order.push({ map: map, key: key }); return; }
-      if (item.u > prev.u) { prev.t = item.t; prev.n = item.n; prev.u = item.u; prev.d = item.d; }
+      if (item.u > prev.u) { prev.t = item.t; prev.n = item.n; prev.u = item.u;
+                             prev.d = item.d; prev.del = item.del; }
       else if (item.u === prev.u) { prev.d = prev.d || item.d; }
       else { prev.d = prev.d || item.d; }
     }
@@ -885,7 +892,7 @@ build();
       lists++; items += g[mk][id].filter(x => (x.t || "").trim()).length;
     }));
     alert([
-      "版本 v15",
+      "版本 v16",
       "仓库 " + (cfg.repo || "(空)"),
       "令牌 " + (cfg.token ? cfg.token.length + " 位" : "(空)"),
       "HTTP " + http,
