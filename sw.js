@@ -1,4 +1,4 @@
-const CACHE = "planner-v16";
+const CACHE = "planner-v17";
 const FILES = ["./", "./index.html", "./manifest.webmanifest",
   "./icon.svg", "./icon-180.png", "./icon-192.png", "./icon-512.png"];
 

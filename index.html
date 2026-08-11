@@ -284,9 +284,10 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   <div id="body"></div>
   <div class="foot">
     <span id="syncst">未配置同步</span>
-    <span style="opacity:.55">v16</span>
+    <span style="opacity:.55" id="build">v17-0811-1813</span>
     <button id="synccfg">同步设置</button>
     <button id="diag">诊断</button>
+    <button id="logbtn">日志</button>
     <button id="syncnow">立即同步</button>
     <button id="theme">切换主题</button>
     <button id="export">导出备份</button>
@@ -294,6 +295,10 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
     <input type="file" id="file" accept=".json" hidden>
     <button id="reset">清空本月</button>
   </div>
+
+  <pre id="logbox" hidden style="margin-top:16px;padding:12px 14px;background:var(--card);
+    border:1px solid var(--rule);font-family:var(--mono);font-size:11px;line-height:1.5;
+    color:var(--ink2);max-height:320px;overflow:auto;white-space:pre-wrap"></pre>
 
   <div id="panel" hidden style="margin-top:20px;padding:20px 22px;background:var(--card);
     border:1px solid var(--rule);max-width:520px">
@@ -334,7 +339,8 @@ const pad=n=>String(n).padStart(2,"0");
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;
   if(x!==undefined)e.textContent=x;return e};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
-  if(window.__dirty)window.__dirty()};
+  if(window.__log)window.__log('save()');
+  if(window.__dirty)window.__dirty();else if(window.__log)window.__log('!! __dirty 不存在')};
 const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
 const blank=()=>({id:uid(),t:"",d:false,n:"",u:0});
 const stamp=it=>{if(!it.id)it.id=uid();it.u=Date.now();return it};
@@ -771,6 +777,7 @@ build();
       if (remote) { backup(); apply(mergeAll(remote.data, gather())); build(); }
       return push();
     }
+    log("PUT 返回 " + r.status);
     if (!r.ok) throw new Error("写入失败 " + r.status);
     const j = await r.json();
     sha = j.content.sha;
@@ -781,7 +788,7 @@ build();
   async function sync(manual) {
     if (busy) return;
     if (!cfg.token || !cfg.repo) { status("未配置同步"); return; }
-    busy = true; status("同步中…", "busy");
+    busy = true; status("同步中…", "busy"); log("同步开始" + (manual ? "(手动)" : "(自动)"));
     try {
       const remote = await pull();
       const mark = localStorage.getItem(MARK);
@@ -802,9 +809,10 @@ build();
           act = '已拉取';
         }
       }
-      window.__act = act;
+      window.__act = act; log("结果=" + act);
       status(act + " · " + new Date().toTimeString().slice(0, 5));
     } catch (e) {
+      log("失败:" + e.message);
       status(navigator.onLine ? "同步失败：" + e.message : "离线，改动已存在本机", "bad");
       if (navigator.onLine) setTimeout(() => sync(), 30000);
     }
@@ -812,12 +820,44 @@ build();
   }
 
   /* 任何一次写入都标记为待同步，并延时推送 */
+  const LOG = "planner-log";
+  function log(m) {
+    try {
+      const t = new Date().toTimeString().slice(0, 8);
+      const arr = JSON.parse(localStorage.getItem(LOG) || "[]");
+      arr.push(t + "  " + m);
+      while (arr.length > 60) arr.shift();
+      localStorage.setItem(LOG, JSON.stringify(arr));
+      const box = document.getElementById("logbox");
+      if (box && !box.hidden) box.textContent = arr.join("
+");
+    } catch (e) {}
+  }
+  window.__log = log;
+
+  document.getElementById("logbtn").onclick = function () {
+    const box = document.getElementById("logbox");
+    box.hidden = !box.hidden;
+    if (!box.hidden) {
+      box.textContent = (JSON.parse(localStorage.getItem(LOG) || "[]")).join("
+") || "(空)";
+      box.scrollTop = box.scrollHeight;
+    }
+  };
+
+  addEventListener("visibilitychange", function () { log("可见性=" + document.visibilityState); });
+  addEventListener("pagehide", function () { log("pagehide"); });
+  addEventListener("online", function () { log("联网"); });
+  addEventListener("offline", function () { log("断网"); });
+
   window.__dirty = function () {
     if (applying) return;                       // 正在应用云端数据，不算本机改动
     localStorage.setItem(DIRTY, "1");
+    log("标记待同步");
     if (cfg.token && cfg.repo) status("待同步…", "busy");
+    if (document.hidden) { log("页面不可见→立刻同步"); sync(); return; }
     clearTimeout(timer);
-    timer = setTimeout(function () { sync(); }, 2500);
+    timer = setTimeout(function () { log("防抖到点"); sync(); }, 2500);
   };
 
   $("synccfg").onclick = () => {
@@ -892,7 +932,7 @@ build();
       lists++; items += g[mk][id].filter(x => (x.t || "").trim()).length;
     }));
     alert([
-      "版本 v16",
+      "版本 " + document.getElementById("build").textContent,
       "仓库 " + (cfg.repo || "(空)"),
       "令牌 " + (cfg.token ? cfg.token.length + " 位" : "(空)"),
       "HTTP " + http,
