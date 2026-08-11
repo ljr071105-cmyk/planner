@@ -68,7 +68,8 @@ function build(t, stale) {
   w.url = SITE;
   w.backgroundColor = new Color(p.bg);
   const small = config.widgetFamily === "small";
-  w.setPadding(small ? 14 : 14, small ? 16 : 60, small ? 12 : 14, small ? 14 : 20);
+  w.setPadding(small ? 14 : 15, small ? 14 : 16, small ? 12 : 14, small ? 14 : 18);
+  const INDENT = small ? 0 : 44;   // 内容行的额外左缩进，改这个数即可
 
   const head = w.addStack();
   head.centerAlignContent();
@@ -78,7 +79,8 @@ function build(t, stale) {
   c.textColor = new Color(p.mute);
   head.addSpacer(10);
   const d = head.addText(t.head);
-  d.font = Font.semiboldRoundedSystemFont(15);
+  d.font = Font.semiboldRoundedSystemFont(14);
+  d.lineLimit = 1;
   d.textColor = new Color(p.fg);
 
   w.addSpacer(12);
@@ -87,7 +89,9 @@ function build(t, stale) {
   let used = 0;
 
   if (!t.groups.length) {
-    const e = w.addText("今天还没安排");
+    const er = w.addStack();
+    if (INDENT) er.addSpacer(INDENT);
+    const e = er.addText("今天还没安排");
     e.font = Font.systemFont(13);
     e.textColor = new Color(p.mute);
   }
@@ -97,6 +101,7 @@ function build(t, stale) {
     if (!small) {
       const lr = w.addStack();
       lr.centerAlignContent();
+      if (INDENT) lr.addSpacer(INDENT);
       const l = lr.addText(g.label);
       l.font = Font.mediumSystemFont(10);
       l.textColor = new Color(p[g.slot]);
@@ -107,6 +112,7 @@ function build(t, stale) {
       if (used >= budget) break;
       const row = w.addStack();
       row.centerAlignContent();
+      if (INDENT) row.addSpacer(INDENT);
       const mk = row.addStack();
       mk.size = new Size(15, 0);
       const mark = mk.addText(it.d ? "✓" : "○");
