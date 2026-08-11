@@ -68,19 +68,20 @@ function build(t, stale) {
   w.url = SITE;
   w.backgroundColor = new Color(p.bg);
   const small = config.widgetFamily === "small";
-  w.setPadding(small ? 14 : 16, small ? 16 : 24, small ? 12 : 14, small ? 14 : 20);
+  w.setPadding(small ? 14 : 14, small ? 16 : 60, small ? 12 : 14, small ? 14 : 20);
 
   const head = w.addStack();
   head.centerAlignContent();
-  const d = head.addText(t.head);
-  d.font = Font.semiboldRoundedSystemFont(15);
-  d.textColor = new Color(p.fg);
   head.addSpacer();
   const c = head.addText(t.total ? t.done + "/" + t.total : (stale ? "离线" : "空"));
   c.font = Font.mediumSystemFont(12);
   c.textColor = new Color(p.mute);
+  head.addSpacer(10);
+  const d = head.addText(t.head);
+  d.font = Font.semiboldRoundedSystemFont(15);
+  d.textColor = new Color(p.fg);
 
-  w.addSpacer(8);
+  w.addSpacer(12);
 
   const budget = small ? 4 : (config.widgetFamily === "large" ? 14 : 6);
   let used = 0;
