@@ -2,22 +2,22 @@
 // 首次使用：把下面 TOKEN 换成你的 GitHub 令牌，然后运行一次
 
 const REPO  = "ljr071105-cmyk/planner-data";
-const TOKEN = "在这里粘贴你的 github_pat_..."; // 公开仓库里不放真令牌
+const TOKEN = "在这里粘贴你的 github_pat_...";
 const SITE  = "https://ljr071105-cmyk.github.io/planner/";
 
 const PALETTE = {
-  1: { bg:"#321617", fg:"#F6EBEB", mute:"#928282", am:"#DB9597", pm:"#BA7779", ev:"#9A5A5C" },
-  2: { bg:"#30180B", fg:"#F6ECE8", mute:"#91837C", am:"#D89B7C", pm:"#B77C5E", ev:"#975F41" },
-  3: { bg:"#2B1C03", fg:"#F3EEE6", mute:"#8D8579", am:"#C9A46C", pm:"#A9864E", ev:"#8A6830" },
-  4: { bg:"#212104", fg:"#EFEFE6", mute:"#87877A", am:"#B0AF6F", pm:"#919051", ev:"#737233" },
-  5: { bg:"#14240E", fg:"#EBF0E9", mute:"#80897E", am:"#91B883", pm:"#729966", ev:"#567A49" },
-  6: { bg:"#03261B", fg:"#E7F1ED", mute:"#7B8A84", am:"#73BCA1", pm:"#539D82", ev:"#337E65" },
-  7: { bg:"#002527", fg:"#E6F1F1", mute:"#798A8A", am:"#63BBBE", pm:"#429C9F", ev:"#1B7E80" },
-  8: { bg:"#022330", fg:"#E7F0F5", mute:"#7A8990", am:"#6EB6D5", pm:"#4F96B5", ev:"#2E7895" },
-  9: { bg:"#111F34", fg:"#EAEFF7", mute:"#7F8792", am:"#89ADE1", pm:"#6C8EC0", ev:"#4F70A0" },
-  10: { bg:"#1E1B33", fg:"#EEEDF6", mute:"#858492", am:"#A8A3DE", pm:"#8984BD", ev:"#6C669D" },
-  11: { bg:"#28182D", fg:"#F2ECF4", mute:"#8B838E", am:"#C29ACE", pm:"#A27CAE", ev:"#835F8F" },
-  12: { bg:"#2F1623", fg:"#F5EBF0", mute:"#908188", am:"#D495B4", pm:"#B37795", ev:"#935A77" }
+  1: { bg:"#FEEFEF", fg:"#201818", mute:"#8A7D7D", am:"#B47173", pm:"#8C4A4D", ev:"#5E2B2E" },
+  2: { bg:"#FDF1EA", fg:"#1F1916", mute:"#897E78", am:"#B07658", pm:"#894F30", ev:"#5C2F16" },
+  3: { bg:"#FAF2E8", fg:"#1E1A14", mute:"#867F76", am:"#A28048", pm:"#7C591A", ev:"#523700" },
+  4: { bg:"#F4F4E8", fg:"#1B1B15", mute:"#818176", am:"#8B8A4B", pm:"#66641E", ev:"#414004" },
+  5: { bg:"#EEF6EC", fg:"#181C17", mute:"#7C8379", am:"#6D9360", pm:"#466C38", ev:"#28461D" },
+  6: { bg:"#EAF7F1", fg:"#151C19", mute:"#78837E", am:"#4D977C", pm:"#1A7057", ev:"#004935" },
+  7: { bg:"#E8F7F7", fg:"#141C1D", mute:"#768384", am:"#3B9699", pm:"#006F73", ev:"#00484B" },
+  8: { bg:"#E9F6FC", fg:"#151C1F", mute:"#778288", am:"#4890AE", pm:"#126A88", ev:"#00445C" },
+  9: { bg:"#EDF4FF", fg:"#171B20", mute:"#7A818A", am:"#6688B9", pm:"#3F6193", ev:"#233D64" },
+  10: { bg:"#F2F2FE", fg:"#1A1A20", mute:"#7F7F8A", am:"#837EB7", pm:"#5E5790", ev:"#3C3662" },
+  11: { bg:"#F8F0FB", fg:"#1D191E", mute:"#847D87", am:"#9C76A8", pm:"#764F81", ev:"#4D2F56" },
+  12: { bg:"#FCEFF5", fg:"#1F181C", mute:"#887C82", am:"#AC718F", pm:"#854A69", ev:"#592B44" }
 };
 
 const SLOTS = [["am", "上午"], ["pm", "下午"], ["ev", "晚上"]];
