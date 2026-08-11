@@ -821,6 +821,7 @@ build();
 
   /* 任何一次写入都标记为待同步，并延时推送 */
   const LOG = "planner-log";
+  const NL = String.fromCharCode(10);
   function log(m) {
     try {
       const t = new Date().toTimeString().slice(0, 8);
@@ -829,8 +830,7 @@ build();
       while (arr.length > 60) arr.shift();
       localStorage.setItem(LOG, JSON.stringify(arr));
       const box = document.getElementById("logbox");
-      if (box && !box.hidden) box.textContent = arr.join("
-");
+      if (box && !box.hidden) box.textContent = arr.join(NL);
     } catch (e) {}
   }
   window.__log = log;
@@ -839,8 +839,7 @@ build();
     const box = document.getElementById("logbox");
     box.hidden = !box.hidden;
     if (!box.hidden) {
-      box.textContent = (JSON.parse(localStorage.getItem(LOG) || "[]")).join("
-") || "(空)";
+      box.textContent = (JSON.parse(localStorage.getItem(LOG) || "[]")).join(NL) || "(空)";
       box.scrollTop = box.scrollHeight;
     }
   };
