@@ -165,7 +165,12 @@ function build(t, stale) {
 
 const q = args.queryParameters || {};
 if (q.k && q.s && q.i !== undefined) {
-  await toggle(q.k, q.s, parseInt(q.i, 10));
+  try {
+    await toggle(q.k, q.s, parseInt(q.i, 10));
+  } catch (e) {
+    const a = new Alert(); a.title = "勾选失败"; a.message = String(e.message || e);
+    a.addAction("好"); await a.present();
+  }
   Script.complete();
 } else {
 
@@ -192,7 +197,10 @@ async function toggle(mKey, slotKey, idx) {
   };
   const g = new Request(url); g.headers = h;
   const meta = await g.loadJSON();
-  const payload = JSON.parse(Data.fromBase64String(meta.content).toRawString());
+  const clean = (meta.content || "").replace(/\s/g, "");   // GitHub 的 base64 带换行，必须先去掉
+  const raw = Data.fromBase64String(clean);
+  if (!raw) throw new Error("data.json 解码失败");
+  const payload = JSON.parse(raw.toRawString());
 
   const arr = payload.data[mKey] && payload.data[mKey][slotKey];
   if (!arr || !arr[idx]) return;
