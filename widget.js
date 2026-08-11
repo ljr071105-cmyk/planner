@@ -99,6 +99,15 @@ function build(t, stale) {
   const budget = small ? 4 : (config.widgetFamily === "large" ? 16 : 6);
   let used = 0;
 
+  // 条目少就放大字号，多就缩小，尽量填满而不溢出
+  const shown = Math.min(budget, t.groups.reduce(function (a, g) { return a + g.items.length; }, 0));
+  const FS  = shown <= 2 ? 17 : shown <= 3 ? 15.5 : shown <= 4 ? 14
+            : shown <= 5 ? 13 : shown <= 6 ? 12.5 : 11.5;
+  const GAP = shown <= 2 ? 10 : shown <= 4 ? 6 : shown <= 6 ? 4 : 3;
+  const MK  = Math.round(FS * 0.86);
+  const LB  = Math.max(9, Math.round(FS * 0.7));
+  const MKW = Math.round(FS * 1.2);
+
   if (!t.groups.length) {
     const er = w.addStack();
     if (INDENT) er.addSpacer(INDENT);
@@ -125,7 +134,7 @@ function build(t, stale) {
         gut.addSpacer();
         if (it === g.items[0]) {
           const gl = gut.addText(g.label);
-          gl.font = Font.mediumSystemFont(9.5);
+          gl.font = Font.mediumSystemFont(LB);
           gl.textColor = new Color(p[g.slot]);
           gl.lineLimit = 1;
         }
@@ -133,19 +142,19 @@ function build(t, stale) {
       }
 
       const mk = row.addStack();
-      mk.size = new Size(15, 0);
+      mk.size = new Size(MKW, 0);
       const mark = mk.addText(it.d ? "✓" : "○");
-      mark.font = Font.systemFont(11);
+      mark.font = Font.systemFont(MK);
       mark.textColor = new Color(it.d ? p.mute : p[g.slot]);
       row.addSpacer(4);
       const tw = row.addStack();
-      tw.size = new Size(INNER - INDENT - 21, 0);
+      tw.size = new Size(INNER - INDENT - MKW - 6, 0);
       const tx = tw.addText(it.t);
-      tx.font = Font.systemFont(12.5);
+      tx.font = Font.systemFont(FS);
       tx.textColor = new Color(it.d ? p.mute : p.fg);
       tx.lineLimit = 1;
       tw.addSpacer();        // 把文字推到左边，否则定宽容器里会居中
-      w.addSpacer(4);
+      w.addSpacer(GAP);
       used++;
     }
   }
