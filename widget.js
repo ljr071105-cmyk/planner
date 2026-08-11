@@ -116,7 +116,22 @@ function build(t, stale) {
       row.centerAlignContent();
       row.url = "scriptable:///run/" + encodeURIComponent(NAME) +
         "?k=" + encodeURIComponent(t.mKey) + "&s=" + g.key + "&i=" + it.idx;
-      if (INDENT) row.addSpacer(INDENT);
+
+      // 左侧留白兼时段标签：每组只在第一行写「上午/下午/晚上」
+      if (INDENT) {
+        const gut = row.addStack();
+        gut.size = new Size(INDENT, 0);
+        gut.centerAlignContent();
+        gut.addSpacer();
+        if (it === g.items[0]) {
+          const gl = gut.addText(g.label);
+          gl.font = Font.mediumSystemFont(9.5);
+          gl.textColor = new Color(p[g.slot]);
+          gl.lineLimit = 1;
+        }
+        gut.addSpacer(8);
+      }
+
       const mk = row.addStack();
       mk.size = new Size(15, 0);
       const mark = mk.addText(it.d ? "✓" : "○");
@@ -129,6 +144,7 @@ function build(t, stale) {
       tx.font = Font.systemFont(12.5);
       tx.textColor = new Color(it.d ? p.mute : p.fg);
       tx.lineLimit = 1;
+      tw.addSpacer();        // 把文字推到左边，否则定宽容器里会居中
       w.addSpacer(4);
       used++;
     }
