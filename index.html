@@ -138,6 +138,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   text-transform:uppercase;margin-bottom:6px}
 
 .day{background:var(--card);border:1px solid var(--rule);margin-top:16px;overflow:hidden;
+  scroll-margin-top:70px;
   transition:border-color .3s,box-shadow .3s}
 .day:hover{border-color:var(--ink3);box-shadow:0 4px 18px -14px rgba(0,0,0,.5)}
 .day.today{border-color:var(--pen);box-shadow:inset 3px 0 0 var(--pen)}
@@ -256,6 +257,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
     <div class="mast-l">
       <p class="eyebrow">Study log</p>
       <div class="nav">
+        <button id="today" aria-label="回到今天" title="回到今天">·</button>
         <button id="prev" aria-label="上一个月">‹</button>
         <h1 id="mtitle">—</h1>
         <button id="next" aria-label="下一个月">›</button>
@@ -487,7 +489,13 @@ function build(){
   root.appendChild(f2);
 
   tally();observe();
+
+  if (jumped === false && isNow) {
+    const t = document.querySelector(".day.today");
+    if (t) { jumped = true; requestAnimationFrame(() => t.scrollIntoView({ block: "start" })); }
+  }
 }
+let jumped = false;
 
 function tally(){
   let td=0,tt=0,notes=0;
@@ -545,6 +553,11 @@ function observe(){
   document.querySelectorAll(".wk-bar").forEach(n=>so.observe(n));
 }
 
+document.getElementById("today").onclick=()=>{
+  const n=new Date();
+  if(Y!==n.getFullYear()||M!==n.getMonth()+1){Y=n.getFullYear();M=n.getMonth()+1;jumped=false;build();}
+  else{const t=document.querySelector(".day.today");if(t)t.scrollIntoView({block:"start",behavior:"smooth"});}
+};
 document.getElementById("prev").onclick=()=>{M--;if(M<1){M=12;Y--}build();scrollTo({top:0})};
 document.getElementById("next").onclick=()=>{M++;if(M>12){M=1;Y++}build();scrollTo({top:0})};
 document.getElementById("theme").onclick=()=>{
