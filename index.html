@@ -284,7 +284,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   <div id="body"></div>
   <div class="foot">
     <span id="syncst">未配置同步</span>
-    <span style="opacity:.55">v14</span>
+    <span style="opacity:.55">v15</span>
     <button id="synccfg">同步设置</button>
     <button id="diag">诊断</button>
     <button id="syncnow">立即同步</button>
@@ -333,8 +333,13 @@ const hueOf=m=>(348+30*m)%360;
 const pad=n=>String(n).padStart(2,"0");
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;
   if(x!==undefined)e.textContent=x;return e};
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
-const get=id=>{if(!S[id])S[id]=[{t:"",d:false,n:""}];return S[id]};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  if(window.__dirty)window.__dirty()};
+const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+const blank=()=>({id:uid(),t:"",d:false,n:"",u:0});
+const stamp=it=>{if(!it.id)it.id=uid();it.u=Date.now();return it};
+const get=id=>{if(!S[id])S[id]=[blank()];
+  S[id].forEach(x=>{if(!x.id)x.id=uid();if(!x.u)x.u=0});return S[id]};
 function caret(n){if(!n)return;n.focus();const r=document.createRange();r.selectNodeContents(n);
   r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r)}
 
@@ -342,14 +347,14 @@ function mkck(it,row){
   const b=el("button","ck");b.type="button";b.setAttribute("role","checkbox");
   b.setAttribute("aria-checked",it.d?"true":"false");b.setAttribute("aria-label","完成");
   b.innerHTML='<svg viewBox="0 0 12 12"><path d="M2 6.4 4.6 9 10 3.2"/></svg>';
-  b.onclick=()=>{it.d=!it.d;save();
+  b.onclick=()=>{it.d=!it.d;stamp(it);save();
     if(it.d){b.classList.add("burst");setTimeout(()=>b.classList.remove("burst"),520)}
     row.classList.toggle("done",it.d);b.setAttribute("aria-checked",it.d?"true":"false");tally();
     if(window.__sync)setTimeout(window.__sync,300)};
   return b;
 }
 function mktx(it,f){const tx=el("div","tx",it[f]);tx.contentEditable="true";tx.spellcheck=false;
-  tx.oninput=()=>{it[f]=tx.textContent;save();tally()};
+  tx.oninput=()=>{it[f]=tx.textContent;stamp(it);save();tally()};
   tx.onblur=()=>{if(window.__sync)window.__sync()};
   return tx}
 
@@ -360,7 +365,7 @@ function simple(id,task){
     get(id).forEach((it,i)=>{
       const row=el("div","row"+(it.d?" done":""));
       row.appendChild(task?mkck(it,row):el("span","bul","◆"));
-      const add=()=>{get(id).splice(i+1,0,{t:"",d:false,n:""});save();draw();
+      const add=()=>{get(id).splice(i+1,0,blank());save();draw();
         caret(box.querySelectorAll(".tx")[i+1])};
       const tx=mktx(it,"t");
       tx.onkeydown=ev=>{
@@ -372,7 +377,7 @@ function simple(id,task){
     });
     const w=el("div");w.style.marginTop="7px";
     const a=el("button","add","＋");a.type="button";a.setAttribute("aria-label","添加一条");
-    a.onclick=()=>{get(id).push({t:"",d:false,n:""});save();draw();
+    a.onclick=()=>{get(id).push(blank());save();draw();
       const n=box.querySelectorAll(".tx");caret(n[n.length-1])};
     w.appendChild(a);box.appendChild(w);
   };
@@ -387,7 +392,7 @@ function slot(id,label,code){
     box.innerHTML="";
     get(id).forEach((it,i)=>{
       const pair=el("div","pair");
-      const add=()=>{get(id).splice(i+1,0,{t:"",d:false,n:""});save();draw();
+      const add=()=>{get(id).splice(i+1,0,blank());save();draw();
         caret(box.querySelectorAll(".cell:first-child .tx")[i+1])};
       const c1=el("div","cell"),r1=el("div","row"+(it.d?" done":""));
       r1.appendChild(mkck(it,r1));
@@ -407,7 +412,7 @@ function slot(id,label,code){
     });
     const bar=el("div","addbar");
     const a=el("button","add","＋");a.type="button";a.setAttribute("aria-label",label+"加一行");
-    a.onclick=()=>{get(id).push({t:"",d:false,n:""});save();draw();
+    a.onclick=()=>{get(id).push(blank());save();draw();
       const n=box.querySelectorAll(".cell:first-child .tx");caret(n[n.length-1])};
     bar.appendChild(a);box.appendChild(bar);
   };
@@ -626,7 +631,7 @@ build();
 (function () {
   const $ = (id) => document.getElementById(id);
   const CFG = "planner-sync-cfg";
-  const MARK = "planner-sync-mark";     // 最近一次成功同步时远端的时间戳
+  const MARK = "planner-sync-mark";     // 最近一次成功同步时的远端 sha（由服务器给，不受时钟影响）
   const DIRTY = "planner-sync-dirty";   // 本地有未推送的改动
   const API = "https://api.github.com";
   let cfg = {}, sha = null, timer = null, busy = false, applying = false;
@@ -671,26 +676,33 @@ build();
     applying = false;
   }
 
-  /* 按内容合并两边，任何一边写过的东西都不会消失 */
-  function keyOf(x) { return (x.t || "").trim() + "§§" + (x.n || "").trim(); }
+  /* 按条目 id 合并；同 id 取修改时间较新的一方。没有 id 的老数据退回按文字比对 */
+  function fingerprint(x) { return (x.t || "").trim() + " §§ " + (x.n || "").trim(); }
   function mergeList(rem, loc) {
-    const out = (rem || []).map(x => ({ t: x.t || "", d: !!x.d, n: x.n || "" }));
-    const seen = new Map();
-    out.forEach((x, i) => { if ((x.t || "").trim() || (x.n || "").trim()) seen.set(keyOf(x), i); });
-    (loc || []).forEach(x => {
-      if (!(x.t || "").trim() && !(x.n || "").trim()) return;
-      const k = keyOf(x);
-      if (seen.has(k)) { const i = seen.get(k); out[i].d = out[i].d || !!x.d; }
-      else { out.push({ t: x.t || "", d: !!x.d, n: x.n || "" }); seen.set(k, out.length - 1); }
-    });
-    return out.length ? out : [{ t: "", d: false, n: "" }];
+    const byId = new Map(), byText = new Map(), order = [];
+    function take(x, fromRemote) {
+      const item = { id: x.id || "", t: x.t || "", d: !!x.d, n: x.n || "", u: x.u || 0 };
+      if (!item.t.trim() && !item.n.trim()) return;
+      const key = item.id || ("txt:" + fingerprint(item));
+      const map = item.id ? byId : byText;
+      const prev = map.get(key);
+      if (!prev) { map.set(key, item); order.push({ map: map, key: key }); return; }
+      if (item.u > prev.u) { prev.t = item.t; prev.n = item.n; prev.u = item.u; prev.d = item.d; }
+      else if (item.u === prev.u) { prev.d = prev.d || item.d; }
+      else { prev.d = prev.d || item.d; }
+    }
+    (rem || []).forEach(function (x) { take(x, true); });
+    (loc || []).forEach(function (x) { take(x, false); });
+    const out = order.map(function (o) { return o.map.get(o.key); });
+    return out.length ? out : [{ id: "", t: "", d: false, n: "", u: 0 }];
   }
   function mergeAll(rem, loc) {
     const res = {}, months = new Set(Object.keys(rem || {}).concat(Object.keys(loc || {})));
-    months.forEach(mk => {
+    months.forEach(function (mk) {
+      if (mk.indexOf("__") === 0) return;
       const rm = (rem || {})[mk] || {}, lm = (loc || {})[mk] || {};
       const ids = new Set(Object.keys(rm).concat(Object.keys(lm))), m = {};
-      ids.forEach(id => { m[id] = mergeList(rm[id], lm[id]); });
+      ids.forEach(function (id) { m[id] = mergeList(rm[id], lm[id]); });
       res[mk] = m;
     });
     return res;
@@ -731,7 +743,9 @@ build();
     if (!r.ok) throw new Error("读取失败 " + r.status);
     const j = await r.json();
     sha = j.sha;
-    return JSON.parse(dec(j.content));
+    const parsed = JSON.parse(dec(j.content));
+    parsed.__sha = j.sha;
+    return parsed;
   }
 
   async function push() {
@@ -753,7 +767,7 @@ build();
     if (!r.ok) throw new Error("写入失败 " + r.status);
     const j = await r.json();
     sha = j.content.sha;
-    localStorage.setItem(MARK, payload.at);
+    localStorage.setItem(MARK, sha);
     localStorage.removeItem(DIRTY);
   }
 
@@ -769,7 +783,7 @@ build();
 
       if (!remote) {
         await push(); act = '已建文件';
-      } else if (remote.at === mark) {
+      } else if (remote.__sha === mark) {
         if (dirty) { await push(); act = '已推送'; }
       } else {
         backup();
@@ -777,7 +791,7 @@ build();
           apply(mergeAll(remote.data, gather())); build(); await push(); act = '已合并';
         } else {
           apply(remote.data); build();
-          localStorage.setItem(MARK, remote.at); localStorage.removeItem(DIRTY);
+          localStorage.setItem(MARK, remote.__sha); localStorage.removeItem(DIRTY);
           act = '已拉取';
         }
       }
@@ -791,15 +805,12 @@ build();
   }
 
   /* 任何一次写入都标记为待同步，并延时推送 */
-  const raw = localStorage.setItem.bind(localStorage);
-  localStorage.setItem = function (k, v) {
-    raw(k, v);
-    if (!applying && k && k.indexOf("planner-20") === 0) {
-      raw(DIRTY, "1");
-      if (cfg.token && cfg.repo) status("待同步…", "busy");
-      clearTimeout(timer);
-      timer = setTimeout(() => sync(), 2500);
-    }
+  window.__dirty = function () {
+    if (applying) return;                       // 正在应用云端数据，不算本机改动
+    localStorage.setItem(DIRTY, "1");
+    if (cfg.token && cfg.repo) status("待同步…", "busy");
+    clearTimeout(timer);
+    timer = setTimeout(function () { sync(); }, 2500);
   };
 
   $("synccfg").onclick = () => {
@@ -857,7 +868,7 @@ build();
           content: enc(JSON.stringify(payload, null, 1)), sha: sha
         })
       }).then(r => { if (r.ok) { localStorage.removeItem(DIRTY);
-        localStorage.setItem(MARK, payload.at); } }).catch(() => {});
+        localStorage.setItem(MARK, "keepalive"); } }).catch(() => {});
     } catch (e) {}
   }
 
@@ -874,7 +885,7 @@ build();
       lists++; items += g[mk][id].filter(x => (x.t || "").trim()).length;
     }));
     alert([
-      "版本 v14",
+      "版本 v15",
       "仓库 " + (cfg.repo || "(空)"),
       "令牌 " + (cfg.token ? cfg.token.length + " 位" : "(空)"),
       "HTTP " + http,
