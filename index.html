@@ -284,7 +284,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   <div id="body"></div>
   <div class="foot">
     <span id="syncst">未配置同步</span>
-    <span style="opacity:.55" id="build">v19-0811-1847</span>
+    <span style="opacity:.55" id="build">v20-0811-1850</span>
     <button id="synccfg">同步设置</button>
     <button id="diag">诊断</button>
     <button id="logbtn">日志</button>
@@ -849,6 +849,19 @@ build();
   addEventListener("visibilitychange", function () { log("可见性=" + document.visibilityState); });
   addEventListener("pagehide", function () { log("pagehide"); });
   addEventListener("online", function () { log("联网"); });
+
+  // iframe 被宿主冻结时请求会排队；任何一次交互都当作唤醒信号，立刻补推
+  function wake(tag) {
+    if (!localStorage.getItem(DIRTY)) return;
+    if (!cfg.token || !cfg.repo) return;
+    log("唤醒(" + tag + ")→补推");
+    sync();
+  }
+  addEventListener("focus", function () { wake("focus"); });
+  addEventListener("pointerdown", function () { wake("点击"); }, true);
+  addEventListener("keyup", function (e) {
+    if (e.key === "Enter" || e.key === "Tab") wake("回车");
+  }, true);
   addEventListener("offline", function () { log("断网"); });
 
   window.__dirty = function () {
