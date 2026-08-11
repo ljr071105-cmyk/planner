@@ -284,7 +284,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);f
   <div id="body"></div>
   <div class="foot">
     <span id="syncst">未配置同步</span>
-    <span style="opacity:.55" id="build">v20-0811-1850</span>
+    <span style="opacity:.55" id="build">v21-0811-1855</span>
     <button id="synccfg">同步设置</button>
     <button id="diag">诊断</button>
     <button id="logbtn">日志</button>
@@ -331,7 +331,7 @@ if(!document.querySelector('meta[name="viewport"]')){
 }
 const WD=["周日","周一","周二","周三","周四","周五","周六"];
 const SLOTS=[["上午","am"],["下午","pm"],["晚上","ev"]];
-const now=new Date();
+let now=new Date();
 let Y=now.getFullYear(), M=now.getMonth()+1, S={}, KEY="", prev={}, wi=0;
 
 const hueOf=m=>(348+30*m)%360;
@@ -635,6 +635,30 @@ document.getElementById("file").onchange=e=>{
 };
 wi=weekOfToday();
 build();
+
+/* 跨零点自动翻到新的一天：页面常开时也能跟上 */
+(function () {
+  let today = new Date().toDateString();
+  function checkDay() {
+    const d = new Date();
+    if (d.toDateString() === today) return;
+    const editing = document.activeElement &&
+      document.activeElement.classList &&
+      document.activeElement.classList.contains("tx");
+    if (editing) return;                       // 正在打字就先不动，等下一次检查
+    today = d.toDateString();
+    now = d;
+    Y = d.getFullYear(); M = d.getMonth() + 1;
+    wi = weekOfToday(); jumped = false;
+    build();
+    if (window.__log) window.__log("跨零点，已切到 " + today);
+  }
+  setInterval(checkDay, 60000);
+  addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") checkDay();
+  });
+  addEventListener("focus", checkDay);
+})();
 </script>
 
 <script>
