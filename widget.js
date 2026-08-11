@@ -4,6 +4,7 @@
 const REPO  = "ljr071105-cmyk/planner-data";
 const TOKEN = "在这里粘贴你的 github_pat_...";
 const SITE  = "https://ljr071105-cmyk.github.io/planner/";
+const NAME  = "计划表小组件";   // 必须和 Scriptable 里这个脚本的名字完全一致
 
 const PALETTE = {
   1: { bg:"#FEEFEF", fg:"#201818", mute:"#8A7D7D", am:"#B47173", pm:"#8C4A4D", ev:"#5E2B2E" },
@@ -53,12 +54,14 @@ function todayTasks(json) {
   const out = [];
   let done = 0, total = 0;
   SLOTS.forEach(function (s) {
-    const items = (month[dKey + "-" + s[0]] || []).filter(function (i) { return i.t && i.t.trim(); });
+    const items = (month[dKey + "-" + s[0]] || [])
+      .map(function (i, idx) { return { t: i.t, d: i.d, idx: idx }; })
+      .filter(function (i) { return i.t && i.t.trim(); });
     if (!items.length) return;
-    out.push({ slot: s[0], label: s[1], items: items });
+    out.push({ slot: s[0], key: dKey + "-" + s[0], label: s[1], items: items });
     items.forEach(function (i) { total++; if (i.d) done++; });
   });
-  return { groups: out, done: done, total: total, month: now.getMonth() + 1,
+  return { groups: out, done: done, total: total, mKey: mKey, month: now.getMonth() + 1,
            head: dKey + " " + WD[now.getDay()] };
 }
 
@@ -111,6 +114,8 @@ function build(t, stale) {
       const row = w.addStack();
       row.size = new Size(INNER, 0);
       row.centerAlignContent();
+      row.url = "scriptable:///run/" + encodeURIComponent(NAME) +
+        "?k=" + encodeURIComponent(t.mKey) + "&s=" + g.key + "&i=" + it.idx;
       if (INDENT) row.addSpacer(INDENT);
       const mk = row.addStack();
       mk.size = new Size(15, 0);
@@ -133,6 +138,12 @@ function build(t, stale) {
   return w;
 }
 
+const q = args.queryParameters || {};
+if (q.k && q.s && q.i !== undefined) {
+  await toggle(q.k, q.s, parseInt(q.i, 10));
+  Script.complete();
+} else {
+
 const res = await load();
 const t = res.json ? todayTasks(res.json)
                    : { groups: [], done: 0, total: 0, month: new Date().getMonth() + 1,
@@ -145,3 +156,33 @@ if (config.runsInWidget) {
   await widget.presentMedium();
 }
 Script.complete();
+}
+
+async function toggle(mKey, slotKey, idx) {
+  const url = "https://api.github.com/repos/" + REPO + "/contents/data.json";
+  const h = {
+    Authorization: "Bearer " + TOKEN,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28"
+  };
+  const g = new Request(url); g.headers = h;
+  const meta = await g.loadJSON();
+  const payload = JSON.parse(Data.fromBase64String(meta.content).toRawString());
+
+  const arr = payload.data[mKey] && payload.data[mKey][slotKey];
+  if (!arr || !arr[idx]) return;
+  arr[idx].d = !arr[idx].d;
+  payload.at = new Date().toISOString();
+
+  const put = new Request(url);
+  put.method = "PUT";
+  put.headers = Object.assign({ "Content-Type": "application/json" }, h);
+  put.body = JSON.stringify({
+    message: "小组件勾选 " + slotKey,
+    content: Data.fromString(JSON.stringify(payload, null, 1)).toBase64String(),
+    sha: meta.sha
+  });
+  await put.loadJSON();
+
+  fm.writeString(CACHE, JSON.stringify(payload));   // 本地缓存同步更新，回桌面立刻能看到
+}
