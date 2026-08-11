@@ -93,7 +93,7 @@ function build(t, stale) {
 
   w.addSpacer(small ? 6 : 7);
 
-  const budget = small ? 3 : (config.widgetFamily === "large" ? 14 : 4);
+  const budget = small ? 4 : (config.widgetFamily === "large" ? 16 : 6);
   let used = 0;
 
   if (!t.groups.length) {
@@ -106,17 +106,6 @@ function build(t, stale) {
 
   for (const g of t.groups) {
     if (used >= budget) break;
-    if (!small) {
-      const lr = w.addStack();
-      lr.size = new Size(INNER, 0);
-      lr.centerAlignContent();
-      if (INDENT) lr.addSpacer(INDENT);
-      const l = lr.addText(g.label);
-      l.font = Font.mediumSystemFont(9.5);
-      l.textColor = new Color(p[g.slot]);
-      lr.addSpacer();
-      w.addSpacer(1);
-    }
     for (const it of g.items) {
       if (used >= budget) break;
       const row = w.addStack();
@@ -135,10 +124,9 @@ function build(t, stale) {
       tx.font = Font.systemFont(12.5);
       tx.textColor = new Color(it.d ? p.mute : p.fg);
       tx.lineLimit = 1;
-      w.addSpacer(2);
+      w.addSpacer(4);
       used++;
     }
-    w.addSpacer(3);
   }
 
   w.addSpacer();
