@@ -81,19 +81,19 @@ function build(t, stale) {
   head.size = new Size(INNER, 0);
   head.centerAlignContent();
   const c = head.addText(t.total ? t.done + "/" + t.total : (stale ? "离线" : "空"));
-  c.font = Font.mediumSystemFont(12);
+  c.font = Font.mediumSystemFont(11);
   c.textColor = new Color(p.mute);
   c.lineLimit = 1;
   head.addSpacer();                       // 弹性空白吃掉多余宽度
   const d = head.addText(t.head);
-  d.font = Font.semiboldRoundedSystemFont(14);
+  d.font = Font.semiboldRoundedSystemFont(13);
   d.textColor = new Color(p.fg);
   d.lineLimit = 1;
   d.minimumScaleFactor = 0.7;             // 宁可缩小也不截断
 
-  w.addSpacer(12);
+  w.addSpacer(small ? 6 : 7);
 
-  const budget = small ? 4 : (config.widgetFamily === "large" ? 14 : 6);
+  const budget = small ? 3 : (config.widgetFamily === "large" ? 14 : 4);
   let used = 0;
 
   if (!t.groups.length) {
@@ -112,10 +112,10 @@ function build(t, stale) {
       lr.centerAlignContent();
       if (INDENT) lr.addSpacer(INDENT);
       const l = lr.addText(g.label);
-      l.font = Font.mediumSystemFont(10);
+      l.font = Font.mediumSystemFont(9.5);
       l.textColor = new Color(p[g.slot]);
       lr.addSpacer();
-      w.addSpacer(4);
+      w.addSpacer(1);
     }
     for (const it of g.items) {
       if (used >= budget) break;
@@ -126,19 +126,19 @@ function build(t, stale) {
       const mk = row.addStack();
       mk.size = new Size(15, 0);
       const mark = mk.addText(it.d ? "✓" : "○");
-      mark.font = Font.systemFont(12);
+      mark.font = Font.systemFont(11);
       mark.textColor = new Color(it.d ? p.mute : p[g.slot]);
       row.addSpacer(4);
       const tw = row.addStack();
       tw.size = new Size(INNER - INDENT - 21, 0);
       const tx = tw.addText(it.t);
-      tx.font = Font.systemFont(13);
+      tx.font = Font.systemFont(12.5);
       tx.textColor = new Color(it.d ? p.mute : p.fg);
       tx.lineLimit = 1;
-      w.addSpacer(5);
+      w.addSpacer(2);
       used++;
     }
-    w.addSpacer(4);
+    w.addSpacer(3);
   }
 
   w.addSpacer();
