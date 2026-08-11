@@ -698,7 +698,7 @@ build();
           localStorage.removeItem(DIRTY); build();
         }
       }
-      if (localStorage.getItem(DIRTY) || (!remote && Object.keys(gather()).length)) await push();
+      if (manual || !remote || localStorage.getItem(DIRTY)) await push();
       status("已同步 · " + new Date().toTimeString().slice(0, 5));
     } catch (e) {
       status(navigator.onLine ? "同步失败：" + e.message : "离线，改动已存在本机", "bad");
@@ -739,7 +739,7 @@ build();
     status("未配置同步");
   };
   $("syncnow").onclick = () => {
-    if (!cfg.token) { $("panel").hidden = false; return; }
+    if (!cfg.token || !cfg.repo) { $("panel").hidden = false; status("先填仓库和令牌", "bad"); return; }
     sha = null; sync(true);
   };
 
